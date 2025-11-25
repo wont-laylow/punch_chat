@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Chat - {{ room_label }}</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 20px auto; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    h1 { margin: 0; }
+    a { text-decoration: none; color: #0077cc; }
+    a:hover { text-decoration: underline; }
+    #messages { border: 1px solid #ccc; border-radius: 6px; height: 320px; overflow-y: auto; padding: 8px; background: #fafafa; }
+    .msg { margin-bottom: 6px; font-size: 14px; }
+    .msg .sender { font-weight: bold; margin-right: 4px; }
+    .msg .meta { font-size: 11px; color: #666; margin-left: 4px; }
+    form { margin-top: 10px; display: flex; gap: 6px; }
+    input[type="text"] { flex: 1; padding: 6px; }
+    button { padding: 6px 12px; }
+  </style>
+</head>
+<body
+  data-room-id="{{ room.id }}"
+  data-ws-token="{{ ws_token or '' }}"
+>
+  <header>
+    <div>
+      <a href="/web/chats">&larr; Back to chats</a>
+      <h1>Chat with {{ room_label }}</h1>
+      <div style="font-size: 13px; color: #555;">
+        You are {{ user.username }} (id={{ user.id }})<br>
+        Room id {{ room.id }} – {{ room_type }}
+      </div>
+    </div>
+    <div>
+      <a href="/web/logout">Logout</a>
+    </div>
+  </header>
+
+  {% if error %}
+    <div style="background: #fee; border: 2px solid #f66; color: #c33; padding: 12px; border-radius: 6px; margin-bottom: 12px; font-weight: bold;">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  <section>
+    <div id="messages">
+      {% if messages %}
+        {% for m in messages %}
+          <div class="msg">
+            <span class="sender">{{ m.sender.username }}</span>:
+            <span class="content">{{ m.content }}</span>
+            <span class="meta">
+              {% if m.created_at %}
+                [{{ m.created_at }}]
+              {% endif %}
+            </span>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p>No messages yet.</p>
+      {% endif %}
+    </div>
+
+    <button id="summarize-btn">Summarize chat</button>
+    <div
+      id="summary-box"
+      class="small"
+      style="margin-top: 8px; white-space: pre-wrap;"
+    ></div>
+
+    <form id="send-form" action="/web/chats/{{ room.id }}/send" method="post">
+      <input type="text" name="content" placeholder="Type a message..." required>
+      <button type="submit">Send</button>
+    </form>
+
+    <p style="font-size: 12px; color: #666; margin-top: 6px;">
+      This sends messages via HTTP (page refresh).<br>
+      Your WebSocket frontend is still used for realtime chat.
+    </p>
+  </section>
+
+  <script>
+    // Read room id and token passed from backend
+    const roomId = Number(document.body.dataset.roomId);
+    const wsToken = document.body.dataset.wsToken || "";
+
+    async function summarizeChat() {
+      if (!roomId) {
+        alert("Missing room id");
+        return;
+      }
+      if (!wsToken) {
+        alert("Missing auth token");
+        return;
+      }
+
+      const res = await fetch(`/api/v1/ai/summary/rooms/${roomId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${wsToken}`,
+        },
+        body: JSON.stringify({
+          max_messages: 100,
+          style: "short",
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert("Failed to summarize: " + (err.detail || res.status));
+        return;
+      }
+
+      const data = await res.json();
+      const box = document.getElementById("summary-box");
+      box.textContent = data.summary;
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const btn = document.getElementById("summarize-btn");
+      if (btn) {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          summarizeChat();
+        });
+      }
+    });
+  </script>
+</body>
+</html>

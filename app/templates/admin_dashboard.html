@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard - {{ admin.username }}</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 30px auto; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    h1 { margin: 0; }
+    a { text-decoration: none; color: #0077cc; }
+    a:hover { text-decoration: underline; }
+    .card-grid { display: flex; gap: 16px; flex-wrap: wrap; }
+    .card { border: 1px solid #ccc; border-radius: 6px; padding: 12px 16px; min-width: 160px; }
+    .card-title { font-size: 13px; color: #666; }
+    .card-value { font-size: 22px; font-weight: bold; margin-top: 4px; }
+    nav a { margin-right: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Admin Dashboard</h1>
+      <div>Logged in as <strong>{{ admin.username }}</strong> (id={{ admin.id }})</div>
+    </div>
+    <div>
+      <a href="/web/chats">Back to user chats</a> |
+      <a href="/admin/users">Manage users</a> |
+      <a href="/web/logout">Logout</a>
+    </div>
+  </header>
+
+  <section>
+    <h2>Overview</h2>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-title">Total users</div>
+        <div class="card-value">{{ stats.total_users }}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Active users</div>
+        <div class="card-value">{{ stats.active_users }}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Admin users</div>
+        <div class="card-value">{{ stats.admin_users }}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Chat rooms</div>
+        <div class="card-value">{{ stats.total_rooms }}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Messages</div>
+        <div class="card-value">{{ stats.total_messages }}</div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

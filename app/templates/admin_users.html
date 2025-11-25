@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Admin - Users</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 30px auto; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    h1 { margin: 0; }
+    a { text-decoration: none; color: #0077cc; }
+    a:hover { text-decoration: underline; }
+    table { border-collapse: collapse; width: 100%; font-size: 14px; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+    th { background: #f3f3f3; }
+    form { display: inline; }
+    button { padding: 4px 8px; font-size: 12px; }
+    .badge { font-size: 11px; padding: 2px 4px; border-radius: 3px; }
+    .active { background: #d4f5d4; }
+    .inactive { background: #f5d4d4; }
+    .admin { background: #d4e2f5; }
+    .no { background: #eee; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Manage Users</h1>
+      <div>Admin: <strong>{{ admin.username }}</strong> (id={{ admin.id }})</div>
+    </div>
+    <div>
+      <a href="/admin/dashboard">Dashboard</a> |
+      <a href="/web/chats">User chats</a> |
+      <a href="/web/logout">Logout</a>
+    </div>
+  </header>
+
+  <section>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Email</th>
+          <th>Username</th>
+          <th>Active</th>
+          <th>Admin</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+          <tr>
+            <td>{{ u.id }}</td>
+            <td>{{ u.email }}</td>
+            <td>{{ u.username }}</td>
+            <td>
+              {% if u.is_active %}
+                <span class="badge active">active</span>
+              {% else %}
+                <span class="badge inactive">inactive</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if u.is_admin %}
+                <span class="badge admin">admin</span>
+              {% else %}
+                <span class="badge no">no</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if u.id != admin.id %}
+                <form method="post" action="/admin/users/{{ u.id }}/toggle-active">
+                  <button type="submit">
+                    {% if u.is_active %}Deactivate{% else %}Activate{% endif %}
+                  </button>
+                </form>
+                <form method="post" action="/admin/users/{{ u.id }}/toggle-admin">
+                  <button type="submit">
+                    {% if u.is_admin %}Remove admin{% else %}Make admin{% endif %}
+                  </button>
+                </form>
+              {% else %}
+                <small>(you)</small>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</body>
+</html>

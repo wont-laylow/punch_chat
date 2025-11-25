@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Chats - {{ user.username }}</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 30px auto; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    h1 { margin: 0; }
+    a { text-decoration: none; color: #0077cc; }
+    a:hover { text-decoration: underline; }
+    .conversation-list { border: 1px solid #ccc; border-radius: 6px; padding: 8px; margin-bottom: 20px; }
+    .conv-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+    .conv-item:last-child { border-bottom: none; }
+    .badge { font-size: 11px; padding: 2px 6px; border-radius: 3px; background: #eee; margin-left: 4px; }
+    .empty { padding: 8px; color: #666; font-size: 14px; }
+    section { margin-bottom: 24px; }
+    form.inline-form { display: inline; }
+    label { display: block; margin-bottom: 6px; font-size: 14px; }
+    input[type="text"] { padding: 6px; width: 100%; max-width: 260px; }
+    button { padding: 6px 10px; margin-top: 6px; }
+    .user-result { padding: 6px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+    .user-result:last-child { border-bottom: none; }
+    small { color: #666; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Chats</h1>
+      <div>Logged in as <strong>{{ user.username }}</strong> (id={{ user.id }})</div>
+    </div>
+    <div>
+      <a href="/web/logout">Logout</a>
+    </div>
+  </header>
+
+  <!-- Existing conversations -->
+  <section>
+    <h2>Your conversations</h2>
+    <div class="conversation-list">
+      {% if conversations %}
+        {% for conv in conversations %}
+          <div class="conv-item">
+            <div>
+              <strong>{{ conv.label }}</strong>
+              <span class="badge">{{ conv.room_type }}</span>
+            </div>
+            <div>
+              <a href="/web/chats/{{ conv.id }}">Open</a>
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty">
+          You have no chats yet. Start a direct chat or create a group below.
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Start a new direct chat -->
+  <section>
+    <h2>Start a new direct chat</h2>
+    <form method="get" action="/web/chats">
+      <label>
+        Search by username:
+        <input type="text" name="q" value="{{ search_query }}" placeholder="Type username">
+      </label>
+      <button type="submit">Search</button>
+    </form>
+
+    {% if search_query %}
+      <p><small>Search results for "<strong>{{ search_query }}</strong>":</small></p>
+      {% if search_results %}
+        <div class="conversation-list">
+          {% for u in search_results %}
+            <div class="user-result">
+              <span>{{ u.username }} <small>(id={{ u.id }})</small></span>
+              <form method="post" action="/web/chats/direct" class="inline-form">
+                <input type="hidden" name="other_user_id" value="{{ u.id }}">
+                <button type="submit">Chat</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p><small>No users found.</small></p>
+      {% endif %}
+    {% endif %}
+  </section>
+
+  <!-- Create a group -->
+  <section>
+    <h2>Create a group chat</h2>
+    <form method="post" action="/web/chats/group">
+        <label>
+        Group name (optional):
+        <input type="text" name="group_name" placeholder="My Group">
+        </label>
+        <label>
+        Member usernames (comma-separated, excluding yourself):
+        <input type="text" name="member_usernames" placeholder="alice,bob,charlie">
+        </label>
+        <button type="submit">Create group</button>
+    </form>
+    <p><small>After creating a group, you can open it from "Your conversations" and start chatting.</small></p>
+ </section>
+
+</body>
+</html>

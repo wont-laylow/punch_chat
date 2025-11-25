@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Realtime Chat Test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 1000px; margin: 20px auto; display: flex; gap: 20px; }
+    h1 { margin-top: 0; }
+    section { margin-bottom: 20px; }
+    input, button { margin: 4px 0; }
+    .column { flex: 1; min-width: 0; }
+    #messages { border: 1px solid #ccc; height: 300px; overflow-y: auto; padding: 5px; background: #fafafa; }
+    .msg { margin-bottom: 4px; font-size: 14px; }
+    .msg span.sender { font-weight: bold; margin-right: 4px; }
+    .msg small { color: #666; margin-left: 4px; }
+    #rooms-list, #search-results { border: 1px solid #ddd; padding: 5px; max-height: 200px; overflow-y: auto; background: #fdfdfd; }
+    .room-item, .user-item { padding: 4px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+    .room-item:last-child, .user-item:last-child { border-bottom: none; }
+    .tag { display: inline-block; padding: 1px 4px; font-size: 11px; background: #eee; border-radius: 3px; margin-left: 4px; }
+    .status-connected { color: green; font-weight: bold; }
+    .status-disconnected { color: red; font-weight: bold; }
+    .small { font-size: 12px; color: #666; }
+    .flex-row { display: flex; gap: 4px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div class="column">
+    <h1>Realtime Chat Test</h1>
+
+    <!-- AUTH SECTION -->
+    <section>
+      <h2>1. Auth</h2>
+
+      <h3>Register</h3>
+      <label>Email:<br><input id="reg-email" type="email" placeholder="user@example.com"></label><br>
+      <label>Username:<br><input id="reg-username" type="text" placeholder="username"></label><br>
+      <label>Password:<br><input id="reg-password" type="password"></label><br>
+      <button onclick="registerUser()">Register</button>
+
+      <hr>
+
+      <h3>Login</h3>
+      <label>Email:<br><input id="email" type="email" value="user1@example.com"></label><br>
+      <label>Password:<br><input id="password" type="password"></label><br>
+      <button onclick="login()">Login</button>
+
+      <p class="small">
+        Access token: <span id="access-token" style="word-break: break-all;"></span>
+      </p>
+      <p class="small">
+        Logged in as: <span id="current-user"></span>
+      </p>
+    </section>
+
+    <!-- USER SEARCH + ACTIONS -->
+    <section>
+      <h2>2. Find Users</h2>
+      <div>
+        <label>Search by username:<br>
+          <input id="search-query" type="text" placeholder="Type username">
+        </label>
+        <button onclick="searchUsers()">Search</button>
+      </div>
+      <div id="search-results"></div>
+      <p class="small">
+        From search results you can:
+        <br> - Start a direct chat (DM)
+        <br> - Add user to current group (if you've selected a group room)
+      </p>
+    </section>
+
+    <!-- GROUP MANAGEMENT -->
+    <section>
+      <h2>3. Group Chat</h2>
+      <p class="small">
+        Create a group with a name and member IDs (comma-separated). The current user is always included.
+      </p>
+      <label>Group name:<br><input id="group-name" type="text" placeholder="My Group"></label><br>
+      <label>Member IDs (comma-separated):<br>
+        <input id="group-members" type="text" placeholder="2,3,4">
+      </label><br>
+      <button onclick="createGroup()">Create Group</button>
+    </section>
+
+    <!-- ROOMS LIST -->
+    <section>
+      <h2>4. My Rooms</h2>
+      <button onclick="loadMyRooms()">Refresh Rooms</button>
+      <div id="rooms-list"></div>
+      <p class="small">
+        Click "Select" to set the active room. Then go to the right panel to connect and chat.
+      </p>
+    </section>
+  </div>
+
+  <div class="column">
+    <!-- CURRENT ROOM + WS -->
+    <section>
+      <h2>5. Current Room</h2>
+      <p>Current room ID: <span id="current-room-id">None</span></p>
+      <p>Room type: <span id="current-room-type">N/A</span></p>
+      <p>WebSocket status:
+        <span id="ws-status" class="status-disconnected">Disconnected</span>
+      </p>
+      <button onclick="connectWS()">Connect WebSocket to Current Room</button>
+      <button onclick="disconnectWS()">Disconnect</button>
+      <p class="small">
+        WebSocket connects to: <code>/ws/chat?room_id=&lt;id&gt;&amp;token=&lt;access_token&gt;</code>
+      </p>
+    </section>
+
+    <!-- MESSAGES -->
+    <section>
+      <h2>6. Messages</h2>
+      <button onclick="loadMessages()">Load Last 50 Messages</button>
+      <div id="messages"></div>
+      <div class="flex-row">
+        <input id="message-input" type="text" placeholder="Type message..." style="flex:1;">
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    let accessToken = null;
+    let currentUser = null;
+    let currentRoomId = null;
+    let currentRoomType = null;
+    let ws = null;
+
+    // Helper to extract a useful error message from FastAPI / generic responses
+    async function extractErrorMessage(res) {
+      try {
+        const err = await res.json();
+        console.log("HTTP error:", err);
+
+        if (Array.isArray(err.detail) && err.detail.length > 0 && err.detail[0].msg) {
+          return err.detail[0].msg;
+        }
+        if (typeof err.detail === "string") {
+          return err.detail;
+        }
+        return JSON.stringify(err);
+      } catch (e) {
+        return res.status + " " + res.statusText;
+      }
+    }
+
+    // ========== AUTH ==========
+
+    async function registerUser() {
+      const email = document.getElementById("reg-email").value.trim();
+      const username = document.getElementById("reg-username").value.trim();
+      const password = document.getElementById("reg-password").value.trim();
+
+      if (!email || !username || !password) {
+        alert("Fill email, username and password");
+        return;
+      }
+
+      const res = await fetch("/api/v1/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, username, password })
+      });
+
+      if (!res.ok) {
+        const msg = await extractErrorMessage(res);
+        alert("Register failed: " + msg);
+        return;
+      }
+
+      const data = await res.json();
+      alert("Registered user with id=" + data.id + " and username=" + data.username);
+    }
+
+    async function login() {
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      if (!email || !password) {
+        alert("Fill email and password");
+        return;
+      }
+
+      const res = await fetch("/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (!res.ok) {
+        const msg = await extractErrorMessage(res);
+        alert("Login failed: " + msg);
+        return;
+      }
+
+      const data = await res.json();
+      accessToken = data.access_token;
+      document.getElementById("access-token").innerText = accessToken;
+
+      // Load current user info
+      await fetchCurrentUser();
+    }
+
+    async function fetchCurrentUser() {
+      if (!accessToken) return;
+
+      const res = await fetch("/api/v1/auth/me", {
+        headers: { "Authorization": "Bearer " + accessToken }
+      });
+
+      if (!res.ok) {
+        document.getElementById("current-user").innerText = "Unknown (auth failed)";
+        return;
+      }
+
+      currentUser = await res.json();
+      document.getElementById("current-user").innerText =
+        currentUser.username + " (id=" + currentUser.id + ")";
+    }
+
+    // ========== USER SEARCH ==========
+
+    async function searchUsers() {
+      const q = document.getElementById("search-query").value.trim();
+      if (!q) {
+        alert("Type something to search");
+        return;
+      }
+      if (!accessToken) {
+        alert("Login first");
+        return;
+      }
+
+      const res = await fetch("/api/v1/users/search?q=" + encodeURIComponent(q), {
+        headers: { "Authorization": "Bearer " + accessToken }
+      });
+
+      if (!res.ok) {
+        const msg = await extractErrorMessage(res);
+        alert("Search failed: " + msg);
+        return;
+      }
+
+      const users = await res.json();
+      renderSearchResults(users);
+    }
+
+    function renderSearchResults(users) {
+      const container = document.getElementById("search-results");
+      container.innerHTML = "";
+
+      if (!users.length) {
+        container.innerHTML = "<p class='small'>No users found.</p>";
+        return;
+      }
+
+      users.forEach(u => {
+        const div = document.createElement("div");
+        div.className = "user-item";
+        div.innerHTML = `
+          <span>${u.username} <span class="small">(id=${u.id})</span></span>
+          <span>
+            <button onclick="startDirectChat(${u.id}, '${u.username}')">DM</button>
+            <button onclick="addUserToCurrentGroup(${u.id}, '${u.username}')">Add to group</button>
+          </span>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    async function startDirectChat(otherUserId, username) {
+      if (!accessToken) {
+        alert("Login first");
+        return;
+      }
+
+      const res = await fetch(`/api/v1/chat/direct/${otherUserId}`, {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + accessToken
+        }
+      });
+
+      if (!res.ok) {
+        const msg = await extractErrorMessage(res);
+        alert("Failed to open direct chat: " + msg);
+        return;
+      }
+
+      const room = await res.json();
+      alert(`Direct chat with ${username} -> room id = ${room.id}`);
+      setCurrentRoom(room.id, room.room_type);
+    }
+
+    async function addUserToCurrentGroup(userId, username) {
+      if (!accessToken) {
+        alert("Login first");
+        return;
+      }
+      if (!currentRoomId || currentRoomType !== "group") {
+        alert("Select a group room first");
+        return;
+      }
+
+      const res = await fetch(`/api/v1/chat/rooms/${currentRoomId}/members`, {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + accessToken,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ user_id: userId })
+      });
+
+      if (!res.ok) {
+        const msg = await extractErrorMessage(res);
+        alert("Failed to add user to group: " + msg);
+        return;
+      }
+
+      alert(`Added ${username} (id=${userId}) to group room ${currentRoomId}`);
+    }
+
+    // ========== GROUP CREATION ==========
+
+    async function createGroup() {
+      if (!accessToken) {
+        alert("Login first");
+        return;
+      }
+
+      const name = document.getElementById("group-name").value.trim();
+      const membersRaw = document.getElementById("group-members").value.trim();
+
+      let memberIds = [];
+      if (membersRaw) {
+        memberIds = membersRaw
+          .split(",")
+          .map(x => parseInt(x.trim(), 10))
+          .filter(x => !Number.isNaN(x));
+      }
+
+      const payload = {
+        name: name || null,
+        room_type: "group",
+        member_ids: memberIds
+      };
+
+      const res = await fetch("/api/v1/chat/rooms", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + accessToken,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const msg = await extractErrorMessage(res);
+        alert("Create group failed: " + msg);
+        return;
+      }
+
+      const room = await res.json();
+      alert(`Group created with id=${room.id}, name=${room.name || "(no name)"}`);
+      setCurrentRoom(room.id, room.room_type);
+      await loadMyRooms();
+    }
+
+    // ========== ROOMS LIST ==========
+
+    async function loadMyRooms() {
+      if (!accessToken) {
+        alert("Login first");
+        return;
+      }
+
+      const res = await fetch("/api/v1/chat/rooms", {
+        headers: {
+          "Authorization": "Bearer " + accessToken
+        }
+      });
+
+      if (!res.ok) {
+        const msg = await extractErrorMessage(res);
+        alert("Failed to load rooms: " + msg);
+        return;
+      }
+
+      const rooms = await res.json();
+      renderRoomsList(rooms);
+    }
+
+    function renderRoomsList(rooms) {
+      const container = document.getElementById("rooms-list");
+      container.innerHTML = "";
+
+      if (!rooms.length) {
+        container.innerHTML = "<p class='small'>No rooms yet.</p>";
+        return;
+      }
+
+      rooms.forEach(r => {
+        const div = document.createElement("div");
+        div.className = "room-item";
+        div.innerHTML = `
+          <span>
+            Room ${r.id}
+            <span class="tag">${r.room_type}</span>
+            ${r.name ? `<span class="small">(${r.name})</span>` : ""}
+          </span>
+          <button onclick="setCurrentRoom(${r.id}, '${r.room_type}')">Select</button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function setCurrentRoom(roomId, roomType) {
+      currentRoomId = roomId;
+      currentRoomType = roomType;
+      document.getElementById("current-room-id").innerText = roomId;
+      document.getElementById("current-room-type").innerText = roomType;
+      document.getElementById("messages").innerHTML = "";
+    }
+
+    // ========== WEBSOCKET & MESSAGES ==========
+
+    function connectWS() {
+      if (!currentRoomId) {
+        alert("Select a room first");
+        return;
+      }
+      if (!accessToken) {
+        alert("Login first");
+        return;
+      }
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        alert("WebSocket already connected");
+        return;
+      }
+
+      ws = new WebSocket(`ws://${window.location.host}/ws/chat?room_id=${currentRoomId}&token=${accessToken}`);
+
+      ws.onopen = () => {
+        document.getElementById("ws-status").innerText = "Connected";
+        document.getElementById("ws-status").className = "status-connected";
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        // Handle error messages (from moderation)
+        if (data.type === "error") {
+          const errorDiv = document.createElement("div");
+          errorDiv.className = "msg msg-error";
+          errorDiv.style.color = "red";
+          errorDiv.style.fontWeight = "bold";
+          errorDiv.innerHTML = `<span>⚠️ ${data.message}</span>`;
+          document.getElementById("messages").appendChild(errorDiv);
+          return;
+        }
+        
+        // Otherwise treat as normal message
+        appendMessage(data);
+      };
+
+      ws.onclose = () => {
+        document.getElementById("ws-status").innerText = "Disconnected";
+        document.getElementById("ws-status").className = "status-disconnected";
+      };
+    }
+
+    function disconnectWS() {
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+    }
+
+    function sendMessage() {
+      const input = document.getElementById("message-input");
+      const content = input.value.trim();
+      if (!content) return;
+
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert("WebSocket is not connected");
+        return;
+      }
+
+      ws.send(JSON.stringify({ content }));
+      input.value = "";
+    }
+
+    async function loadMessages() {
+      if (!currentRoomId) {
+        alert("Select a room first");
+        return;
+      }
+      if (!accessToken) {
+        alert("Login first");
+        return;
+      }
+
+      const res = await fetch(`/api/v1/chat/rooms/${currentRoomId}/messages?limit=50&offset=0`, {
+        headers: {
+          "Authorization": "Bearer " + accessToken
+        }
+      });
+
+      if (!res.ok) {
+        const msg = await extractErrorMessage(res);
+        alert("Failed to load messages: " + msg);
+        return;
+      }
+
+      const msgs = await res.json();
+      const messagesDiv = document.getElementById("messages");
+      messagesDiv.innerHTML = "";
+
+      // API returns newest first; reverse for display oldest-first
+      msgs.reverse().forEach(appendMessage);
+    }
+
+    function appendMessage(msg) {
+      const el = document.getElementById("messages");
+      const div = document.createElement("div");
+      div.className = "msg";
+      const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString() : "";
+      div.innerHTML = `
+        <span class="sender">${msg.sender_id}</span>:
+        <span>${msg.content}</span>
+        <small>${time}</small>
+      `;
+      el.appendChild(div);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    // Enter-to-send
+    document.addEventListener("DOMContentLoaded", () => {
+      const input = document.getElementById("message-input");
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
