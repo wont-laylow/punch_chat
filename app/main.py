@@ -114,22 +114,29 @@ async def websocket_chat(
                 continue
 
             message_in = MessageCreate(room_id=room_id, content=content)
-            msg_obj, block_reason = await chat_service.save_message(
+            # COMMENTED OUT: Content moderator removed due to compute costs on free hosting
+            # msg_obj, block_reason = await chat_service.save_message(
+            #     db,
+            #     message_in=message_in,
+            #     sender_id=user_id,
+            # )
+            # 
+            # # If message was blocked, send error notification to user
+            # if block_reason:
+            #     logger.warning("Message blocked for user %s: %s", user_id, block_reason)
+            #     error_response = {
+            #         "type": "error",
+            #         "message": f"Your message was blocked: {block_reason}"
+            #     }
+            #     logger.debug("Sending error response: %s", error_response)
+            #     await websocket.send_json(error_response)
+            #     continue
+            
+            msg_obj, _ = await chat_service.save_message(
                 db,
                 message_in=message_in,
                 sender_id=user_id,
             )
-            
-            # If message was blocked, send error notification to user
-            if block_reason:
-                logger.warning("Message blocked for user %s: %s", user_id, block_reason)
-                error_response = {
-                    "type": "error",
-                    "message": f"Your message was blocked: {block_reason}"
-                }
-                logger.debug("Sending error response: %s", error_response)
-                await websocket.send_json(error_response)
-                continue
 
             logger.debug("Saved message %s in room %s from user %s", getattr(msg_obj, 'id', None), room_id, user_id)
 

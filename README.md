@@ -1,6 +1,6 @@
 # Chat Plus
 
-Minimal FastAPI chat app with JWT auth, group & direct chats, AI summarization, and a local content moderator.
+Minimal FastAPI chat app with JWT auth, group & direct chats, and AI summarization.
 
 Quick Start (Windows cmd)
 
@@ -27,7 +27,6 @@ Key Features
 - Chats: Group & direct rooms, membership management, realtime via WebSocket plus HTTP fallback.
 - Find friends: Search users and start direct chats from the web UI.
 - Summarizer: AI endpoint that summarizes recent messages; a `Summarize chat` button is available in room UI.
-- Content moderator: On-device MiniLMv2-based toxicity filter that blocks toxic messages before saving. Configurable threshold in `app/ai/moderator.py`.
 
 Quick pointers
 
@@ -35,11 +34,8 @@ Quick pointers
 - Web UI routes: `app/web/router.py`
 - WebSocket + app entry: `app/main.py`
 - Business logic: `app/services/chat_service.py`
-- Moderator: `app/ai/moderator.py`
 
 Notes
 
-- When a message is blocked the web UI shows a red error box with the block reason; moderator logs contain details.
 - Use `--reload` during development for automatic server restarts after code changes.
-
-Want it even shorter or need an `.env` example? I can add that next.
+- Content moderator has been disabled due to compute costs on free hosting.

@@ -588,43 +588,50 @@ async def web_chat_room_send(
 
     # Check message content with moderator
     msg_create = MessageCreate(room_id=room_id, content=content)
-    msg, block_reason = await chat_service.save_message(
+    # COMMENTED OUT: Content moderator removed due to compute costs on free hosting
+    # msg, block_reason = await chat_service.save_message(
+    #     db,
+    #     message_in=msg_create,
+    #     sender_id=user.id,
+    # )
+    # 
+    # # If message was blocked, show error to user
+    # if block_reason:
+    #     logger.warning("Message blocked for user %s: %s", user.id, block_reason)
+    #     # Fetch room messages to display
+    #     stmt_msgs = (
+    #         select(Message)
+    #         .where(Message.room_id == room_id)
+    #         .order_by(Message.created_at.asc())
+    #         .limit(100)
+    #         .options(joinedload(Message.sender))
+    #     )
+    #     res_msgs = await db.execute(stmt_msgs)
+    #     messages = list(res_msgs.scalars().unique())
+    #     
+    #     # Render the chat room page again with error message
+    #     room_type = "Direct" if room.room_type == RoomType.DIRECT else "Group"
+    #     room_label = room.name or f"{room_type} Chat"
+    #     
+    #     return templates.TemplateResponse(
+    #         "chat_room.html",
+    #         {
+    #             "request": request,
+    #             "room": room,
+    #             "room_type": room_type,
+    #             "room_label": room_label,
+    #             "messages": messages,
+    #             "user": user,
+    #             "ws_token": None,
+    #             "error": f"❌ Message blocked: {block_reason}",
+    #         }
+    #     )
+    
+    msg, _ = await chat_service.save_message(
         db,
         message_in=msg_create,
         sender_id=user.id,
     )
-    
-    # If message was blocked, show error to user
-    if block_reason:
-        logger.warning("Message blocked for user %s: %s", user.id, block_reason)
-        # Fetch room messages to display
-        stmt_msgs = (
-            select(Message)
-            .where(Message.room_id == room_id)
-            .order_by(Message.created_at.asc())
-            .limit(100)
-            .options(joinedload(Message.sender))
-        )
-        res_msgs = await db.execute(stmt_msgs)
-        messages = list(res_msgs.scalars().unique())
-        
-        # Render the chat room page again with error message
-        room_type = "Direct" if room.room_type == RoomType.DIRECT else "Group"
-        room_label = room.name or f"{room_type} Chat"
-        
-        return templates.TemplateResponse(
-            "chat_room.html",
-            {
-                "request": request,
-                "room": room,
-                "room_type": room_type,
-                "room_label": room_label,
-                "messages": messages,
-                "user": user,
-                "ws_token": None,
-                "error": f"❌ Message blocked: {block_reason}",
-            }
-        )
 
     # TODO: if you want true realtime, call your ConnectionManager.broadcast here.
 

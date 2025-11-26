@@ -7,7 +7,7 @@ from app.models.chat import ChatRoom, RoomMembership, Message, RoomType
 from app.schemas.chat import ChatRoomCreate, MessageCreate
 from app.models.user import User
 from app.core.logger import get_logger
-from app.ai.moderator import check_message_allowed
+# from app.ai.moderator import check_message_allowed  # COMMENTED OUT: Removed due to compute costs on free hosting
 
 logger = get_logger(__name__)
 
@@ -224,25 +224,25 @@ class ChatService:
         sender_id: int,
     ) -> tuple[Optional[Message], Optional[str]]:
         """
-        Persist a message in the DB after checking content moderation.
-        Returns: (message: Optional[Message], block_reason: Optional[str])
-        - If blocked, returns (None, reason)
-        - If allowed, returns (message_obj, None)
+        Persist a message in the DB.
+        Returns: (message: Message, block_reason: None)
         """
-        logger.debug("Checking message content: %s", message_in.content[:50])
-        try:
-            allowed, block_reason = await check_message_allowed(message_in.content)
-            logger.debug("Moderation result - Allowed: %s, Reason: %s", allowed, block_reason)
-        except Exception as e:
-            logger.error("Error during moderation check: %s", e, exc_info=True)
-            allowed = True
-            block_reason = None
+        # COMMENTED OUT: Content moderator removed due to compute costs on free hosting
+        # logger.debug("Checking message content: %s", message_in.content[:50])
+        # try:
+        #     allowed, block_reason = await check_message_allowed(message_in.content)
+        #     logger.debug("Moderation result - Allowed: %s, Reason: %s", allowed, block_reason)
+        # except Exception as e:
+        #     logger.error("Error during moderation check: %s", e, exc_info=True)
+        #     allowed = True
+        #     block_reason = None
+        # 
+        # if not allowed:
+        #     logger.warning("Message blocked: %s | Reason: %s", message_in.content[:50], block_reason)
+        #     return None, block_reason
+        # 
+        # logger.debug("Message passed moderation check")
         
-        if not allowed:
-            logger.warning("Message blocked: %s | Reason: %s", message_in.content[:50], block_reason)
-            return None, block_reason
-        
-        logger.debug("Message passed moderation check")
         message = Message(
             room_id=message_in.room_id,
             sender_id=sender_id,
